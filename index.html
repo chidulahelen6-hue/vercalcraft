@@ -1,1 +1,127 @@
-<!DOCTYPE html><html lang="en"><head>  <meta charset="UTF-8">  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">  <meta name="theme-color" content="#182b23">  <title>VOXELCRAFT: Wildlands</title>  <link rel="stylesheet" href="style.css"></head><body>  <div id="game">    <div id="topbar">      <div class="brand"><span class="brand-mark">V</span><span>VOXELCRAFT <small>WILDLANDS</small></span></div>      <div id="status">Loading world…</div>      <button id="saveBtn" class="top-btn">Save</button>      <button id="cheatBtn" class="top-btn">⚙ Cheats</button>    </div>    <div id="crosshair">+</div>    <div id="hint">Tap the world to look around · Break / Place blocks</div>    <div id="leftControls" class="touch-controls">      <button data-move="forward" class="move up">▲</button>      <button data-move="left" class="move left">◀</button>      <button data-move="back" class="move down">▼</button>      <button data-move="right" class="move right">▶</button>    </div>    <div id="rightControls" class="touch-controls">      <button id="jumpBtn" class="action jump">JUMP</button>      <button id="breakBtn" class="action break">BREAK</button>      <button id="placeBtn" class="action place">PLACE</button>    </div>    <div id="hotbar" aria-label="Inventory hotbar"></div>    <div id="cheatPanel" class="panel hidden">      <div class="panel-head"><strong>OWNER CONSOLE</strong><button id="closeCheats" aria-label="Close">✕</button></div>      <p class="muted">Single-player cheats · type a command</p>      <div class="command-row"><input id="commandInput" autocomplete="off" placeholder="/help"><button id="runCommand">Run</button></div>      <div id="commandOutput">Type <code>/help</code> to see commands.</div>    </div>    <div id="startScreen" class="overlay">      <div class="start-card">        <div class="logo-cube">V</div>        <p class="eyebrow">EXPLORE · BUILD · CREATE</p>        <h1>VOXELCRAFT<br><span>WILDLANDS</span></h1>        <p class="intro">A tiny block-world adventure. Explore a fresh world, gather blocks, and build something great.</p>        <button id="playBtn" class="primary">ENTER WORLD</button>        <p class="small-note">Desktop: WASD to move, mouse to look, Space to jump.<br>Mobile: use the touch controls and drag on the world to look.</p>      </div>    </div>    <div id="toast" role="status"></div>  </div>  <script type="module" src="game.js"></script></body></html>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#182b23">
+
+    <title>VOXELCRAFT: Wildlands</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="game">
+
+        <header id="topbar">
+            <div class="brand">
+                <span class="brand-mark">V</span>
+                <span>
+                    VOXELCRAFT
+                    <small>WILDLANDS</small>
+                </span>
+            </div>
+
+            <div id="status">Loading world...</div>
+
+            <button id="saveBtn" class="top-btn">
+                Save
+            </button>
+
+            <button id="cheatBtn" class="top-btn">
+                ⚙ Cheats
+            </button>
+        </header>
+
+        <div id="crosshair">+</div>
+
+        <div id="hint">
+            Explore · Break blocks · Build
+        </div>
+
+        <!-- Mobile movement controls -->
+        <div id="leftControls" class="touch-controls">
+            <button class="move up" data-move="forward">▲</button>
+            <button class="move left" data-move="left">◀</button>
+            <button class="move down" data-move="back">▼</button>
+            <button class="move right" data-move="right">▶</button>
+        </div>
+
+        <!-- Mobile action buttons -->
+        <div id="rightControls" class="touch-controls">
+            <button id="jumpBtn" class="action jump">JUMP</button>
+            <button id="breakBtn" class="action break">BREAK</button>
+            <button id="placeBtn" class="action place">PLACE</button>
+        </div>
+
+        <!-- Inventory hotbar -->
+        <div id="hotbar"></div>
+
+        <!-- Owner cheat console -->
+        <div id="cheatPanel" class="panel hidden">
+            <div class="panel-head">
+                <strong>OWNER CONSOLE</strong>
+                <button id="closeCheats">✕</button>
+            </div>
+
+            <p class="muted">
+                Enter a cheat command below.
+            </p>
+
+            <div class="command-row">
+                <input
+                    id="commandInput"
+                    type="text"
+                    placeholder="/help"
+                    autocomplete="off"
+                >
+
+                <button id="runCommand">Run</button>
+            </div>
+
+            <div id="commandOutput">
+                Type /help to see commands.
+            </div>
+        </div>
+
+        <!-- Welcome screen -->
+        <div id="startScreen" class="overlay">
+            <div class="start-card">
+
+                <div class="logo-cube">V</div>
+
+                <p class="eyebrow">
+                    EXPLORE · BUILD · CREATE
+                </p>
+
+                <h1>
+                    VOXELCRAFT<br>
+                    <span>WILDLANDS</span>
+                </h1>
+
+                <p class="intro">
+                    Explore a block-built world, collect resources,
+                    discover new places and build your own adventure.
+                </p>
+
+                <button id="playBtn" class="primary">
+                    ENTER WORLD
+                </button>
+
+                <p class="small-note">
+                    Computer: WASD to move, mouse to look.<br>
+                    Mobile: use the touch controls and drag to look around.
+                </p>
+
+            </div>
+        </div>
+
+        <div id="toast" role="status"></div>
+
+    </div>
+
+    <script type="module" src="game.js"></script>
+
+</body>
+</html>
