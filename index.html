@@ -1,0 +1,172 @@
+
+<!-- VOXELCRAFT OWNER CHEAT CONSOLE -->
+<style>
+#cheatBox{
+ position:fixed;z-index:9999;left:50%;top:50%;
+ transform:translate(-50%,-50%);width:min(420px,94vw);
+ padding:18px;background:#17231b;color:#e8f5e9;
+ border:3px solid #8ab66b;box-shadow:0 0 0 100vmax #0009;
+ font:14px monospace;border-radius:8px;display:none
+}
+#cheatBox h2{margin:0 0 8px;color:#b8f58c}
+#cheatBox p{color:#c2d4bc}
+#cheatOutput{height:115px;overflow:auto;background:#0b120d;padding:9px;white-space:pre-wrap;overflow-wrap:anywhere}
+#cheatInput{width:100%;padding:12px;background:#080e09;color:#aaff91;border:2px solid #658b50;font:16px monospace}
+#cheatBox button{padding:9px;background:#375c30;color:white;border:1px solid #91c67a;font:inherit}
+#cheatHelp{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+</style>
+
+<div id="cheatBox">
+ <h2>⌘ WILDLANDS CONSOLE</h2>
+ <p>Owner sandbox commands</p>
+ <div id="cheatOutput">Console ready. Type /help to see commands.</div>
+ <div id="cheatHelp">
+  <button onclick="cheatQuick('/god on')">God Mode</button>
+  <button onclick="cheatQuick('/blocks on')">Infinite Blocks</button>
+  <button onclick="cheatQuick('/speed 2')">Super Speed</button>
+  <button onclick="cheatQuick('/time day')">Day</button>
+  <button onclick="cheatQuick('/time night')">Night</button>
+ </div>
+ <form id="cheatForm">
+  <input id="cheatInput" placeholder="/give wood 64" autocomplete="off">
+  <button type="submit">RUN COMMAND</button>
+  <button type="button" onclick="toggleCheats()">CLOSE</button>
+ </form>
+</div>
+
+<script>
+(() => {
+ const box = document.getElementById('cheatBox');
+ const input = document.getElementById('cheatInput');
+ const output = document.getElementById('cheatOutput');
+
+ // Shared cheat settings. Connect these to the game engine below.
+ const state = window.wildlandsCheats = {
+   godMode:false,
+   unlimitedBlocks:false,
+   speedMultiplier:1,
+   timeOfDay:'day',
+   inventory:{wood:0,stone:0,dirt:0},
+   enabled:false
+ };
+
+ function log(message) {
+   output.textContent += '\n> ' + message;
+   output.scrollTop = output.scrollHeight;
+ }
+
+ function runCommand(raw) {
+   const args = raw.trim().toLowerCase().split(/\s+/);
+   const cmd = args[0];
+   if (!cmd) return;
+
+   if (cmd === '/help') {
+     log('/cheats | /god on|off | /blocks on|off');
+     log('/speed 1|2|3 | /time day|night');
+     log('/give wood|stone|dirt|all amount');
+     return;
+   }
+
+   if (cmd === '/cheats') {
+     toggleCheats();
+     return;
+   }
+
+   if (cmd === '/god' && ['on','off'].includes(args[1])) {
+     state.godMode = args[1] === 'on';
+     log('God mode: ' + (state.godMode ? 'ON' : 'OFF'));
+     return;
+   }
+
+   if (cmd === '/blocks' && ['on','off'].includes(args[1])) {
+     state.unlimitedBlocks = args[1] === 'on';
+     log('Unlimited blocks: ' + (state.unlimitedBlocks ? 'ON' : 'OFF'));
+     return;
+   }
+
+   if (cmd === '/speed') {
+     const n = Number(args[1]);
+     if (![1,2,3].includes(n)) {
+       log('Usage: /speed 1, /speed 2, or /speed 3');
+       return;
+     }
+     state.speedMultiplier = n;
+     log('Speed multiplier set to ' + n + 'x');
+     return;
+   }
+
+   if (cmd === '/time' && ['day','night'].includes(args[1])) {
+     state.timeOfDay = args[1];
+     window.dispatchEvent(new CustomEvent('wildlands-time-change',{
+       detail:{time:state.timeOfDay}
+     }));
+     log('Time set to ' + state.timeOfDay);
+     return;
+   }
+
+   if (cmd === '/give') {
+     const item = args[1];
+     const amount = Number(args[2]);
+     const allowed = ['wood','stone','dirt'];
+
+     if (!Number.isSafeInteger(amount) || amount < 1 || amount > 9999) {
+       log('Amount must be an integer from 1 to 9999.');
+       return;
+     }
+     if (item === 'all') {
+       allowed.forEach(k => state.inventory[k] += amount);
+       log('Added ' + amount + ' of every material.');
+       window.dispatchEvent(new Event('wildlands-inventory-change'));
+       return;
+     }
+     if (!allowed.includes(item)) {
+       log('Items: wood, stone, dirt, all');
+       return;
+     }
+     state.inventory[item] += amount;
+     log('Added ' + amount + ' ' + item + '. Total: ' + state.inventory[item]);
+     window.dispatchEvent(new Event('wildlands-inventory-change'));
+     return;
+   }
+
+   log('Unknown command. Type /help.');
+ }
+
+ window.toggleCheats = function() {
+   box.style.display = box.style.display === 'block' ? 'none' : 'block';
+   if (box.style.display === 'block') input.focus();
+ };
+
+ window.cheatQuick = function(command) {
+   input.value = command;
+   runCommand(command);
+ };
+
+ document.getElementById('cheatForm').addEventListener('submit', e => {
+   e.preventDefault();
+   runCommand(input.value);
+   input.value = '';
+ });
+
+ // Type /cheats in the game's command shortcut to open the console.
+ // On mobile, expose a small console button.
+ const openButton = document.createElement('button');
+ openButton.textContent = '⌘';
+ openButton.title = 'Open owner cheat console';
+ Object.assign(openButton.style,{
+   position:'fixed',right:'12px',top:'105px',zIndex:'1000',
+   padding:'10px 14px',background:'#263e25',color:'white',
+   border:'2px solid #91c67a',font:'bold 20px monospace'
+ });
+ openButton.addEventListener('click', window.toggleCheats);
+ document.body.appendChild(openButton);
+
+ document.addEventListener('keydown', e => {
+   if (e.key === 'Escape' && box.style.display === 'block') {
+     window.toggleCheats();
+   }
+ });
+})();
+</script>
+</body>
+</html>
