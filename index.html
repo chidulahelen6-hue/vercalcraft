@@ -2,126 +2,104 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#182b23">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" content="#18291f">
+  <title>VOXELCRAFT: WILDLANDS</title>
 
-    <title>VOXELCRAFT: Wildlands</title>
-
-    <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
+  <main id="game">
 
-    <div id="game">
-
-        <header id="topbar">
-            <div class="brand">
-                <span class="brand-mark">V</span>
-                <span>
-                    VOXELCRAFT
-                    <small>WILDLANDS</small>
-                </span>
-            </div>
-
-            <div id="status">Loading world...</div>
-
-            <button id="saveBtn" class="top-btn">
-                Save
-            </button>
-
-            <button id="cheatBtn" class="top-btn">
-                ⚙ Cheats
-            </button>
-        </header>
-
-        <div id="crosshair">+</div>
-
-        <div id="hint">
-            Explore · Break blocks · Build
+    <header id="topbar">
+      <div class="brand">
+        <span class="brand-mark">V</span>
+        <div>
+          <strong>VOXELCRAFT</strong>
+          <small>WILDLANDS</small>
         </div>
+      </div>
 
-        <!-- Mobile movement controls -->
-        <div id="leftControls" class="touch-controls">
-            <button class="move up" data-move="forward">▲</button>
-            <button class="move left" data-move="left">◀</button>
-            <button class="move down" data-move="back">▼</button>
-            <button class="move right" data-move="right">▶</button>
-        </div>
+      <div id="status">Preparing world...</div>
 
-        <!-- Mobile action buttons -->
-        <div id="rightControls" class="touch-controls">
-            <button id="jumpBtn" class="action jump">JUMP</button>
-            <button id="breakBtn" class="action break">BREAK</button>
-            <button id="placeBtn" class="action place">PLACE</button>
-        </div>
+      <button id="saveBtn">SAVE</button>
+      <button id="cheatBtn">CHEATS</button>
+    </header>
 
-        <!-- Inventory hotbar -->
-        <div id="hotbar"></div>
+    <div id="crosshair">+</div>
+    <div id="hint">EXPLORE • MINE • BUILD</div>
 
-        <!-- Owner cheat console -->
-        <div id="cheatPanel" class="panel hidden">
-            <div class="panel-head">
-                <strong>OWNER CONSOLE</strong>
-                <button id="closeCheats">✕</button>
-            </div>
-
-            <p class="muted">
-                Enter a cheat command below.
-            </p>
-
-            <div class="command-row">
-                <input
-                    id="commandInput"
-                    type="text"
-                    placeholder="/help"
-                    autocomplete="off"
-                >
-
-                <button id="runCommand">Run</button>
-            </div>
-
-            <div id="commandOutput">
-                Type /help to see commands.
-            </div>
-        </div>
-
-        <!-- Welcome screen -->
-        <div id="startScreen" class="overlay">
-            <div class="start-card">
-
-                <div class="logo-cube">V</div>
-
-                <p class="eyebrow">
-                    EXPLORE · BUILD · CREATE
-                </p>
-
-                <h1>
-                    VOXELCRAFT<br>
-                    <span>WILDLANDS</span>
-                </h1>
-
-                <p class="intro">
-                    Explore a block-built world, collect resources,
-                    discover new places and build your own adventure.
-                </p>
-
-                <button id="playBtn" class="primary">
-                    ENTER WORLD
-                </button>
-
-                <p class="small-note">
-                    Computer: WASD to move, mouse to look.<br>
-                    Mobile: use the touch controls and drag to look around.
-                </p>
-
-            </div>
-        </div>
-
-        <div id="toast" role="status"></div>
-
+    <!-- Mobile movement -->
+    <div id="leftControls">
+      <button data-move="forward">▲</button>
+      <button data-move="left">◀</button>
+      <button data-move="back">▼</button>
+      <button data-move="right">▶</button>
     </div>
 
-    <script type="module" src="game.js"></script>
+    <!-- Game actions -->
+    <div id="rightControls">
+      <button id="jumpBtn">JUMP</button>
+      <button id="breakBtn">MINE</button>
+      <button id="placeBtn">PLACE</button>
+    </div>
 
+    <!-- Block inventory -->
+    <div id="hotbar"></div>
+
+    <!-- Cheat console -->
+    <section id="cheatPanel" class="hidden">
+      <div class="panel-heading">
+        <strong>OWNER CONSOLE</strong>
+        <button id="closeCheats">X</button>
+      </div>
+
+      <p>Enter a command:</p>
+
+      <div class="command-row">
+        <input id="commandInput" placeholder="/help"
+               autocomplete="off">
+        <button id="runCommand">RUN</button>
+      </div>
+
+      <div id="commandOutput">
+        Type /help to see commands.
+      </div>
+    </section>
+
+    <!-- Welcome screen -->
+    <section id="startScreen">
+      <div class="welcome-card">
+        <div class="welcome-icon">🌍</div>
+
+        <p class="eyebrow">YOUR WORLD. YOUR ADVENTURE.</p>
+
+        <h1>
+          VOXELCRAFT
+          <span>WILDLANDS</span>
+        </h1>
+
+        <p class="description">
+          Explore a living block world, discover forests,
+          collect resources, mine stone and build your own creations.
+        </p>
+
+        <button id="playBtn">ENTER WORLD</button>
+
+        <p class="instructions">
+          COMPUTER: WASD to move · Mouse to look · Space to jump<br>
+          MOBILE: Use the movement and action buttons
+        </p>
+      </div>
+    </section>
+
+    <!-- Notifications -->
+    <div id="toast"></div>
+
+  </main>
+
+  <script type="module" src="game.js"></script>
 </body>
 </html>
