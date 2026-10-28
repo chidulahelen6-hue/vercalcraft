@@ -1,1 +1,442 @@
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";const $ = (id) => document.getElementById(id);const scene = new THREE.Scene();scene.background = new THREE.Color(0x87c9f4);scene.fog = new THREE.Fog(0x87c9f4, 18, 58);const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 120);camera.position.set(0, 3, 8);const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });renderer.setPixelRatio(Math.min(devicePixelRatio, 1.7));renderer.setSize(innerWidth, innerHeight);renderer.shadowMap.enabled = false;renderer.outputColorSpace = THREE.SRGBColorSpace;$("game").prepend(renderer.domElement);renderer.domElement.id = "worldCanvas";renderer.domElement.style.position = "absolute";renderer.domElement.style.inset = "0";scene.add(new THREE.HemisphereLight(0xd9efff, 0x657347, 2.0));const sun = new THREE.DirectionalLight(0xfff1ce, 2.0);sun.position.set(-15, 25, 12);scene.add(sun);const materials = {  grass: new THREE.MeshLambertMaterial({ color: 0x66a84a }),  dirt: new THREE.MeshLambertMaterial({ color: 0x805333 }),  stone: new THREE.MeshLambertMaterial({ color: 0x888e91 }),  wood: new THREE.MeshLambertMaterial({ color: 0x966238 }),  leaves: new THREE.MeshLambertMaterial({ color: 0x397e43 }),  sand: new THREE.MeshLambertMaterial({ color: 0xd8c27d }),  plank: new THREE.MeshLambertMaterial({ color: 0xc18b50 }),  brick: new THREE.MeshLambertMaterial({ color: 0x9f5a4e })};const blockColors = { grass:"#66a84a", dirt:"#805333", stone:"#888e91", wood:"#966238", leaves:"#397e43", sand:"#d8c27d", plank:"#c18b50", brick:"#9f5a4e" };const blockNames = Object.keys(materials);const world = new Map();const blockMeshes = new Map();const creatures = [];const cubeGeo = new THREE.BoxGeometry(1,1,1);const keyOf = (x,y,z) => `${x},${y},${z}`;const parseKey = (k) => k.split(",").map(Number);let selectedBlock = "grass";let running = false, yaw = 0, pitch = 0, velocityY = 0, onGround = false;let isGod = false, infiniteBlocks = false, speedMultiplier = 1, timeMode = "cycle";let cycleTime = 0.18;let moveForward = false, moveBack = false, moveLeft = false, moveRight = false;const inventory = { grass: 24, dirt: 40, stone: 12, wood: 16, leaves: 12, sand: 10, plank: 12, brick: 8 };let lastToast = 0;function toast(message) {  $("toast").textContent = message;  $("toast").classList.add("show");  clearTimeout(lastToast);  lastToast = setTimeout(() => $("toast").classList.remove("show"), 1900);}function addBlock(x,y,z,type,save=true) {  const k = keyOf(x,y,z);  if (world.has(k)) return false;  const mesh = new THREE.Mesh(cubeGeo, materials[type] || materials.grass);  mesh.position.set(x,y,z);  mesh.userData = { x,y,z,type };  scene.add(mesh); world.set(k,type); blockMeshes.set(k,mesh);  return true;}function removeBlock(x,y,z,collect=true) {  const k = keyOf(x,y,z), mesh = blockMeshes.get(k);  if (!mesh) return false;  scene.remove(mesh); mesh.geometry = cubeGeo; world.delete(k); blockMeshes.delete(k);  const type = mesh.userData.type;  if (collect) { inventory[type] = (inventory[type] || 0) + 1; updateHotbar(); }  return true;}function terrainHeight(x,z) {  return Math.floor(1 + Math.sin(x*0.31)*1.2 + Math.cos(z*0.27)*0.8 + Math.sin((x+z)*0.17)*0.7);}function generateWorld() {  for (let x=-15; x<=15; x++) for (let z=-15; z<=15; z++) {    const h = terrainHeight(x,z);    for (let y=-3; y<=h; y++) {      const type = y===h ? ((h<=0 && (x+z)%5===0) ? "sand":"grass") : (y>=h-2 ? "dirt":"stone");      addBlock(x,y,z,type);    }    // Scatter trees, avoiding the spawn clearing.    if (Math.abs(x)>3 && Math.abs(z)>3 && Math.random()<0.055 && h>0) {      const trunk = 3 + Math.floor(Math.random()*2);      for (let ty=1; ty<=trunk; ty++) addBlock(x,h+ty,z,"wood");      for (let lx=-2; lx<=2; lx++) for (let lz=-2; lz<=2; lz++) for (let ly=trunk-1; ly<=trunk+1; ly++) {        if (Math.abs(lx)+Math.abs(lz)+Math.abs(ly-trunk) < 5 && Math.random()>.12) addBlock(x+lx,h+ly,z+lz,"leaves");      }    }  }  // A few small original block creatures; they are decorative wanderers.  for (let i=0;i<5;i++) {    const x = Math.round((Math.random()-.5)*18), z = Math.round((Math.random()-.5)*18);    const y = terrainHeight(x,z)+1.05;    const color = [0x67b957,0x9aa4a8,0x8a5cc7,0xd7a74d][i%4];    const body = new THREE.Mesh(new THREE.BoxGeometry(.7,.9,.5), new THREE.MeshLambertMaterial({color}));    body.position.set(x,y,z); scene.add(body);    const head = new THREE.Mesh(new THREE.BoxGeometry(.58,.58,.58), new THREE.MeshLambertMaterial({color: color===0x67b957?0x7bd66a:color}));    head.position.set(x,y+.65,z); scene.add(head);    const eyeMat = new THREE.MeshBasicMaterial({color:0x18221d});    for (const dx of [-.14,.14]) { const eye = new THREE.Mesh(new THREE.BoxGeometry(.07,.07,.035),eyeMat); eye.position.set(x+dx,y+.69,z-.3); scene.add(eye); }    creatures.push({body,head,x,z,phase:Math.random()*6});  }}function updateHotbar() {  const bar = $("hotbar"); bar.innerHTML = "";  blockNames.forEach((type,i) => {    const slot = document.createElement("button");    slot.className = "slot" + (type===selectedBlock ? " selected":"");    slot.title = type;    slot.innerHTML = `<div class="block-icon" style="background:${blockColors[type]}"></div><span>${type}</span><b>${infiniteBlocks?"∞":(inventory[type]||0)}</b>`;    slot.addEventListener("click", () => { selectedBlock=type; updateHotbar(); });    bar.appendChild(slot);  });}function saveWorld() {  try {    const data = { blocks: Array.from(world.entries()), inventory, player: {x:camera.position.x,y:camera.position.y,z:camera.position.z,yaw,pitch}, cycleTime, timeMode };    localStorage.setItem("voxelcraft-wildlands-save", JSON.stringify(data));    toast("World saved on this device.");  } catch (e) { toast("Could not save. Browser storage may be disabled."); }}function loadWorld() {  try {    const raw = localStorage.getItem("voxelcraft-wildlands-save");    if (!raw) return false;    const data = JSON.parse(raw);    if (!Array.isArray(data.blocks)) return false;    for (const mesh of blockMeshes.values()) scene.remove(mesh);    world.clear(); blockMeshes.clear();    for (const [k,type] of data.blocks) { const [x,y,z]=parseKey(k); addBlock(x,y,z,type,false); }    Object.assign(inventory,data.inventory||{});    if (data.player) { camera.position.set(data.player.x,data.player.y,data.player.z); yaw=data.player.yaw||0; pitch=data.player.pitch||0; }    cycleTime = data.cycleTime ?? .18; timeMode=data.timeMode||"cycle";    updateHotbar(); toast("Saved world loaded."); return true;  } catch(e) { console.warn("Save could not be loaded",e); return false; }}function updateTime(dt) {  if (timeMode === "cycle") cycleTime = (cycleTime + dt*0.008) % 1;  else if (timeMode === "day") cycleTime = .25;  else if (timeMode === "night") cycleTime = .75;  const daylight = Math.max(.12, Math.sin(cycleTime*Math.PI*2 - Math.PI/2)*.5+.5);  const sky = new THREE.Color().setHSL(.56, .55, .2 + daylight*.48);  scene.background = sky;  scene.fog.color.copy(sky);  sun.intensity = .25 + daylight*2.1;  sun.position.set(Math.cos(cycleTime*Math.PI*2)*20, 8+daylight*24, Math.sin(cycleTime*Math.PI*2)*20);}function direction() {  return new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)).normalize();}function updatePlayer(dt) {  const forward = direction();  const right = new THREE.Vector3(forward.z,0,-forward.x);  const move = new THREE.Vector3();  if (moveForward || keys.has("KeyW") || keys.has("ArrowUp")) move.add(forward);  if (moveBack || keys.has("KeyS") || keys.has("ArrowDown")) move.sub(forward);  if (moveRight || keys.has("KeyD") || keys.has("ArrowRight")) move.add(right);  if (moveLeft || keys.has("KeyA") || keys.has("ArrowLeft")) move.sub(right);  if (move.lengthSq()>0) {    move.normalize().multiplyScalar(5.4*speedMultiplier*dt);    camera.position.x += move.x; camera.position.z += move.z;  }  if (!isGod) {    velocityY -= 18*dt;    camera.position.y += velocityY*dt;    const gx=Math.round(camera.position.x), gz=Math.round(camera.position.z);    let ground = -2.5;    for (const [k,type] of world) {      const [x,y,z]=parseKey(k);      if (Math.abs(x-camera.position.x)<.45 && Math.abs(z-camera.position.z)<.45 && y+0.5 <= camera.position.y-1.35 && y+1.55>ground) ground=Math.max(ground,y+1.55);    }    if (camera.position.y < ground) { camera.position.y=ground; velocityY=0; onGround=true; }    else onGround=false;  } else { velocityY=0; }  camera.rotation.order="YXZ";  camera.rotation.y=yaw; camera.rotation.x=pitch;  camera.position.x = THREE.MathUtils.clamp(camera.position.x,-28,28);  camera.position.z = THREE.MathUtils.clamp(camera.position.z,-28,28);}const keys = new Set();addEventListener("keydown",e=>{  keys.add(e.code);  if (e.code==="Space" && onGround) { velocityY=7; onGround=false; }  if (e.code.startsWith("Digit")) { const i=Number(e.code.slice(5))-1; if(blockNames[i]){selectedBlock=blockNames[i];updateHotbar();} }  if (e.code==="KeyE") $("cheatPanel").classList.toggle("hidden");  if (e.key==="/" && document.activeElement.tagName!=="INPUT") { e.preventDefault(); $("cheatPanel").classList.remove("hidden"); $("commandInput").focus(); $("commandInput").value="/"; }});addEventListener("keyup",e=>keys.delete(e.code));$("playBtn").addEventListener("click",()=>{ $("startScreen").classList.add("hidden"); running=true; camera.position.y=Math.max(camera.position.y,terrainHeight(0,5)+2.7); toast("Welcome to Wildlands!"); });$("saveBtn").addEventListener("click",saveWorld);$("cheatBtn").addEventListener("click",()=>{$("cheatPanel").classList.toggle("hidden");});$("closeCheats").addEventListener("click",()=>{$("cheatPanel").classList.add("hidden");});function runCommand() {  const raw=$("commandInput").value.trim();  const args=raw.toLowerCase().split(/\s+/);  const cmd=args[0], out=$("commandOutput");  const say=(s)=>{out.textContent=s;};  if (!cmd) return;  if (cmd==="/cheats") { $("cheatPanel").classList.remove("hidden"); say("Owner console opened. Type /help for commands."); }  else if (cmd==="/help") say("/cheats — open console\n/god on|off — no gravity\n/blocks on|off — unlimited blocks\n/speed 1|2|3 — movement speed\n/time day|night|cycle — set sky time\n/give <block|all> <amount> — add blocks\n/save — save this world");  else if (cmd==="/god") { isGod=args[1]==="on"; say("God mode: "+(isGod?"ON":"OFF")); toast("God mode "+(isGod?"enabled":"disabled")); }  else if (cmd==="/blocks") { infiniteBlocks=args[1]==="on"; updateHotbar(); say("Unlimited blocks: "+(infiniteBlocks?"ON":"OFF")); }  else if (cmd==="/speed") { const n=Number(args[1]); if([1,2,3].includes(n)){speedMultiplier=n;say("Movement speed set to "+n+".");}else say("Use /speed 1, /speed 2, or /speed 3."); }  else if (cmd==="/time") { if(["day","night","cycle"].includes(args[1])){timeMode=args[1];say("Time mode: "+timeMode);}else say("Use /time day, /time night, or /time cycle."); }  else if (cmd==="/give") {    const amount=Math.max(1,Math.min(999,parseInt(args[2]||"16",10)||16));    if(args[1]==="all"){blockNames.forEach(n=>inventory[n]=(inventory[n]||0)+amount);say("Added "+amount+" of every block.");}    else if(blockNames.includes(args[1])){inventory[args[1]]=(inventory[args[1]]||0)+amount;say("Added "+amount+" "+args[1]+" blocks.");}    else say("Use /give grass|dirt|stone|wood|leaves|sand|plank|brick 16, or /give all 16.");    updateHotbar();  } else if (cmd==="/save") { saveWorld(); say("Save requested."); }  else say("Unknown command. Type /help.");}$("runCommand").addEventListener("click",runCommand);$("commandInput").addEventListener("keydown",e=>{if(e.key==="Enter")runCommand();});const raycaster = new THREE.Raycaster();raycaster.far=6;function targetBlock() {  raycaster.setFromCamera(new THREE.Vector2(0,0),camera);  const hits=raycaster.intersectObjects(Array.from(blockMeshes.values()),false);  return hits[0]||null;}function breakBlock() {  const hit=targetBlock();  if(!hit){toast("Look at a block first.");return;}  const p=hit.object.userData;  if(p.y<=-3){toast("That block is too deep.");return;}  removeBlock(p.x,p.y,p.z,true); updateHotbar();}function placeBlock() {  if(!infiniteBlocks && (inventory[selectedBlock]||0)<=0){toast("No "+selectedBlock+" blocks. Use /give.");return;}  const hit=targetBlock();  if(!hit){toast("Aim at a block to place beside it.");return;}  const normal=hit.face.normal.clone().transformDirection(hit.object.matrixWorld);  const p=hit.object.userData;  const x=p.x+Math.round(normal.x), y=p.y+Math.round(normal.y), z=p.z+Math.round(normal.z);  if(Math.abs(x-camera.position.x)<.8 && Math.abs(z-camera.position.z)<.8 && Math.abs(y-camera.position.y)<1.8){toast("You can't place a block inside yourself.");return;}  if(addBlock(x,y,z,selectedBlock)){if(!infiniteBlocks)inventory[selectedBlock]--;updateHotbar();}}$("breakBtn").addEventListener("click",breakBlock);$("placeBtn").addEventListener("click",placeBlock);$("jumpBtn").addEventListener("click",()=>{if(onGround||isGod){velocityY=7;onGround=false;}});document.querySelectorAll("[data-move]").forEach(btn=>{  const name=btn.dataset.move;  const set=(v)=>{if(name==="forward")moveForward=v;if(name==="back")moveBack=v;if(name==="left")moveLeft=v;if(name==="right")moveRight=v;};  btn.addEventListener("pointerdown",e=>{e.preventDefault();set(true);btn.setPointerCapture?.(e.pointerId);});  ["pointerup","pointercancel","lostpointercapture"].forEach(ev=>btn.addEventListener(ev,()=>set(false)));});let lookPointer=null, lastX=0,lastY=0;renderer.domElement.addEventListener("pointerdown",e=>{  if(e.pointerType==="mouse"){ if(running && e.button===0) renderer.domElement.requestPointerLock?.(); }  else {lookPointer=e.pointerId;lastX=e.clientX;lastY=e.clientY;}});renderer.domElement.addEventListener("pointermove",e=>{  if(e.pointerType==="mouse" && document.pointerLockElement===renderer.domElement){yaw-=e.movementX*.0025;pitch-=e.movementY*.0025;}  else if(lookPointer===e.pointerId){const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;yaw-=dx*.006;pitch-=dy*.006;}  pitch=THREE.MathUtils.clamp(pitch,-1.35,1.35);});renderer.domElement.addEventListener("pointerup",e=>{if(lookPointer===e.pointerId)lookPointer=null;});renderer.domElement.addEventListener("contextmenu",e=>e.preventDefault());renderer.domElement.addEventListener("dblclick",e=>{e.preventDefault();breakBlock();});function animateCreatures(t) {  for(const c of creatures){const wobble=Math.sin(t*.001+c.phase)*.12;c.head.position.y=c.body.position.y+.65+wobble;c.body.rotation.y=Math.sin(t*.0005+c.phase)*.15;}}let previous=performance.now();function loop(now) {  requestAnimationFrame(loop);  const dt=Math.min((now-previous)/1000,.05);previous=now;  if(running) {updatePlayer(dt);updateTime(dt);animateCreatures(now);}  renderer.render(scene,camera);}generateWorld();updateHotbar();const loaded=loadWorld();if(!loaded) camera.position.set(0,terrainHeight(0,5)+2.7,8);camera.rotation.order="YXZ";$("status").textContent="WILDLANDS · SINGLE PLAYER";addEventListener("resize",()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});addEventListener("beforeunload",()=>{try{localStorage.setItem("voxelcraft-wildlands-save",JSON.stringify({blocks:Array.from(world.entries()),inventory,player:{x:camera.position.x,y:camera.position.y,z:camera.position.z,yaw,pitch},cycleTime,timeMode}));}catch(e){}}); requestanimationframe(loop);
+
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+
+const $ = id => document.getElementById(id);
+
+const game = $("game");
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x83c9ef);
+scene.fog = new THREE.Fog(0x83c9ef, 22, 75);
+
+const camera = new THREE.PerspectiveCamera(
+  75, innerWidth / innerHeight, 0.1, 150
+);
+
+const renderer = new THREE.WebGLRenderer({ antialias: false });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+game.prepend(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xc5e8ff, 0x596344, 2));
+
+const sun = new THREE.DirectionalLight(0xfff1d0, 2.3);
+sun.position.set(15, 30, 12);
+sun.castShadow = true;
+scene.add(sun);
+
+const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
+const materials = {
+  grass: new THREE.MeshLambertMaterial({ color: 0x65a843 }),
+  dirt: new THREE.MeshLambertMaterial({ color: 0x805331 }),
+  stone: new THREE.MeshLambertMaterial({ color: 0x858b91 }),
+  wood: new THREE.MeshLambertMaterial({ color: 0x86502b }),
+  leaves: new THREE.MeshLambertMaterial({ color: 0x347d39 }),
+  sand: new THREE.MeshLambertMaterial({ color: 0xd7c17a }),
+  water: new THREE.MeshLambertMaterial({
+    color: 0x369fe0, transparent: true, opacity: 0.75
+  })
+};
+
+const blocks = new Map();
+const blockKey = (x, y, z) => `${x},${y},${z}`;
+
+function addBlock(x, y, z, type = "grass") {
+  const key = blockKey(x, y, z);
+  if (blocks.has(key)) return;
+
+  const mesh = new THREE.Mesh(cubeGeo, materials[type] || materials.grass);
+  mesh.position.set(x, y, z);
+  mesh.castShadow = type !== "water";
+  mesh.receiveShadow = true;
+  mesh.userData = { x, y, z, type };
+  scene.add(mesh);
+  blocks.set(key, mesh);
+}
+
+function removeBlock(mesh) {
+  if (!mesh || !mesh.userData.type) return;
+  const { x, y, z } = mesh.userData;
+  scene.remove(mesh);
+  blocks.delete(blockKey(x, y, z));
+}
+
+function heightAt(x, z) {
+  return Math.floor(
+    2 + Math.sin(x * 0.35) * 1.2 +
+    Math.cos(z * 0.28) * 1.1 +
+    Math.sin((x + z) * 0.17) * 0.8
+  );
+}
+
+function makeTree(x, y, z) {
+  for (let i = 1; i <= 4; i++) addBlock(x, y + i, z, "wood");
+
+  for (let dx = -2; dx <= 2; dx++) {
+    for (let dz = -2; dz <= 2; dz++) {
+      for (let dy = 2; dy <= 5; dy++) {
+        if (Math.abs(dx) + Math.abs(dz) + Math.abs(dy - 3) <= 4) {
+          if (!blocks.has(blockKey(x + dx, y + dy, z + dz))) {
+            addBlock(x + dx, y + dy, z + dz, "leaves");
+          }
+        }
+      }
+    }
+  }
+}
+
+function generateWorld() {
+  for (let x = -18; x <= 18; x++) {
+    for (let z = -18; z <= 18; z++) {
+      const h = heightAt(x, z);
+
+      for (let y = -2; y <= h; y++) {
+        let type = y === h ? "grass" : y >= h - 2 ? "dirt" : "stone";
+        if (h <= 1 && y === h) type = "sand";
+        addBlock(x, y, z, type);
+      }
+
+      if (
+        Math.abs(x) > 3 && Math.abs(z) > 3 &&
+        Math.random() < 0.045 && h > 1
+      ) {
+        makeTree(x, h, z);
+      }
+    }
+  }
+
+  for (let x = -18; x <= 18; x++) {
+    for (let z = -18; z <= 18; z++) {
+      if (heightAt(x, z) <= 1) addBlock(x, 1, z, "water");
+    }
+  }
+}
+
+generateWorld();
+
+camera.position.set(0, heightAt(0, 0) + 2.5, 5);
+
+let yaw = 0;
+let pitch = 0;
+let playing = false;
+let selectedBlock = "grass";
+let dayTime = 0;
+let velocityY = 0;
+let onGround = false;
+
+const keys = {};
+const move = { forward: false, back: false, left: false, right: false };
+
+const raycaster = new THREE.Raycaster();
+raycaster.far = 6;
+
+function getTarget() {
+  raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+  const objects = [...blocks.values()];
+  return raycaster.intersectObjects(objects, false)[0] || null;
+}
+
+function toast(message) {
+  const el = $("toast");
+  if (!el) return;
+  el.textContent = message;
+  el.style.opacity = "1";
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => el.style.opacity = "0", 1800);
+}
+
+function updateHotbar() {
+  const bar = $("hotbar");
+  if (!bar) return;
+
+  const items = [
+    ["grass", "🟩"],
+    ["dirt", "🟫"],
+    ["stone", "⬜"],
+    ["wood", "🪵"],
+    ["leaves", "🌿"],
+    ["sand", "🟨"]
+  ];
+
+  bar.innerHTML = "";
+  items.forEach(([type, icon]) => {
+    const slot = document.createElement("button");
+    slot.className = "hotbar-slot" +
+      (selectedBlock === type ? " selected" : "");
+    slot.innerHTML = `<span>${icon}</span><span class="slot-name">${type}</span>`;
+    slot.onclick = () => {
+      selectedBlock = type;
+      updateHotbar();
+    };
+    bar.appendChild(slot);
+  });
+}
+
+updateHotbar();
+
+function mineBlock() {
+  const hit = getTarget();
+  if (!hit) {
+    toast("Aim at a block first!");
+    return;
+  }
+  removeBlock(hit.object);
+  toast("Block mined!");
+}
+
+function placeBlock() {
+  const hit = getTarget();
+  if (!hit) {
+    toast("Aim at a block first!");
+    return;
+  }
+
+  const normal = hit.face.normal.clone();
+  normal.transformDirection(hit.object.matrixWorld);
+
+  const p = hit.object.position.clone().add(normal);
+  const x = Math.round(p.x);
+  const y = Math.round(p.y);
+  const z = Math.round(p.z);
+
+  if (Math.abs(x - camera.position.x) < 0.8 &&
+      Math.abs(z - camera.position.z) < 0.8 &&
+      Math.abs(y - camera.position.y) < 1.5) {
+    toast("You cannot place a block inside yourself!");
+    return;
+  }
+
+  addBlock(x, y, z, selectedBlock);
+}
+
+function jump() {
+  if (onGround) {
+    velocityY = 7.5;
+    onGround = false;
+  }
+}
+
+function startGame() {
+  playing = true;
+  $("startScreen")?.classList.add("hidden");
+  toast("Welcome to Wildlands!");
+  renderer.domElement.requestPointerLock?.();
+}
+
+$("playBtn")?.addEventListener("click", startGame);
+$("breakBtn")?.addEventListener("click", mineBlock);
+$("placeBtn")?.addEventListener("click", placeBlock);
+$("jumpBtn")?.addEventListener("click", jump);
+
+$("saveBtn")?.addEventListener("click", () => {
+  const saved = [...blocks.values()].map(m => ({
+    x: m.userData.x, y: m.userData.y, z: m.userData.z,
+    type: m.userData.type
+  }));
+  try {
+    localStorage.setItem("voxelcraft-save", JSON.stringify(saved));
+    toast("World saved!");
+  } catch {
+    toast("Could not save this world.");
+  }
+});
+
+$("cheatBtn")?.addEventListener("click", () => {
+  $("cheatPanel")?.classList.remove("hidden");
+});
+$("closeCheats")?.addEventListener("click", () => {
+  $("cheatPanel")?.classList.add("hidden");
+});
+
+$("runCommand")?.addEventListener("click", runCommand);
+$("commandInput")?.addEventListener("keydown", e => {
+  if (e.key === "Enter") runCommand();
+});
+
+function runCommand() {
+  const input = $("commandInput");
+  const output = $("commandOutput");
+  const command = input.value.trim().toLowerCase();
+
+  if (command === "/help") {
+    output.textContent = "/heal, /time day, /time night, /clear";
+  } else if (command === "/heal") {
+    velocityY = 0;
+    output.textContent = "Health restored!";
+  } else if (command === "/time day") {
+    dayTime = 0;
+    output.textContent = "Daytime enabled.";
+  } else if (command === "/time night") {
+    dayTime = Math.PI;
+    output.textContent = "Nighttime enabled.";
+  } else if (command === "/clear") {
+    for (const mesh of [...blocks.values()]) removeBlock(mesh);
+    output.textContent = "All blocks cleared.";
+  } else {
+    output.textContent = "Unknown command. Try /help";
+  }
+}
+
+window.addEventListener("keydown", e => {
+  keys[e.key.toLowerCase()] = true;
+
+  if (e.key === " " && playing) {
+    e.preventDefault();
+    jump();
+  }
+
+  if (e.key === "Escape") playing = false;
+
+  if (e.key >= "1" && e.key <= "6") {
+    const types = ["grass", "dirt", "stone", "wood", "leaves", "sand"];
+    selectedBlock = types[Number(e.key) - 1];
+    updateHotbar();
+  }
+
+  if (e.key.toLowerCase() === "e") {
+    $("cheatPanel")?.classList.toggle("hidden");
+  }
+});
+
+window.addEventListener("keyup", e => {
+  keys[e.key.toLowerCase()] = false;
+});
+
+document.querySelectorAll("[data-move]").forEach(button => {
+  const direction = button.dataset.move;
+
+  button.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    move[direction] = true;
+    button.setPointerCapture?.(e.pointerId);
+  });
+
+  const release = () => move[direction] = false;
+  button.addEventListener("pointerup", release);
+  button.addEventListener("pointercancel", release);
+  button.addEventListener("lostpointercapture", release);
+});
+
+let lastTouchX = null;
+let lastTouchY = null;
+
+renderer.domElement.addEventListener("pointerdown", e => {
+  if (!playing) return;
+
+  if (e.pointerType === "mouse") {
+    if (e.button === 0) mineBlock();
+    if (e.button === 2) placeBlock();
+    return;
+  }
+
+  lastTouchX = e.clientX;
+  lastTouchY = e.clientY;
+});
+
+renderer.domElement.addEventListener("pointermove", e => {
+  if (!playing || e.pointerType === "mouse") return;
+
+  if (lastTouchX !== null) {
+    const dx = e.clientX - lastTouchX;
+    const dy = e.clientY - lastTouchY;
+    yaw -= dx * 0.006;
+    pitch -= dy * 0.006;
+    pitch = Math.max(-1.45, Math.min(1.45, pitch));
+  }
+
+  lastTouchX = e.clientX;
+  lastTouchY = e.clientY;
+});
+
+renderer.domElement.addEventListener("pointerup", () => {
+  lastTouchX = null;
+  lastTouchY = null;
+});
+
+renderer.domElement.addEventListener("contextmenu", e => e.preventDefault());
+
+document.addEventListener("mousemove", e => {
+  if (!playing || document.pointerLockElement !== renderer.domElement) return;
+  yaw -= e.movementX * 0.002;
+  pitch -= e.movementY * 0.002;
+  pitch = Math.max(-1.45, Math.min(1.45, pitch));
+});
+
+function highestGround(x, z) {
+  const bx = Math.round(x);
+  const bz = Math.round(z);
+  let highest = -3;
+
+  for (let y = -2; y <= 12; y++) {
+    const mesh = blocks.get(blockKey(bx, y, bz));
+    if (mesh && mesh.userData.type !== "water") highest = Math.max(highest, y);
+  }
+
+  return highest;
+}
+
+function update(dt) {
+  if (!playing) return;
+
+  camera.rotation.order = "YXZ";
+  camera.rotation.y = yaw;
+  camera.rotation.x = pitch;
+
+  const speed = 5 * dt;
+  const forward = Number(keys.w || keys.arrowup || move.forward) -
+                  Number(keys.s || keys.arrowdown || move.back);
+  const sideways = Number(keys.d || keys.arrowright || move.right) -
+                   Number(keys.a || keys.arrowleft || move.left);
+
+  const dx = -Math.sin(yaw) * forward + Math.cos(yaw) * sideways;
+  const dz = -Math.cos(yaw) * forward - Math.sin(yaw) * sideways;
+
+  camera.position.x += dx * speed;
+  camera.position.z += dz * speed;
+
+  const ground = highestGround(camera.position.x, camera.position.z) + 1.8;
+
+  velocityY -= 18 * dt;
+  camera.position.y += velocityY * dt;
+
+  if (camera.position.y <= ground) {
+    camera.position.y = ground;
+    velocityY = 0;
+    onGround = true;
+  } else {
+    onGround = false;
+  }
+
+  camera.position.x = THREE.MathUtils.clamp(camera.position.x, -19, 19);
+  camera.position.z = THREE.MathUtils.clamp(camera.position.z, -19, 19);
+}
+
+let previousTime = performance.now();
+
+function animate(now) {
+  requestAnimationFrame(animate);
+
+  const dt = Math.min((now - previousTime) / 1000, 0.05);
+  previousTime = now;
+
+  update(dt);
+
+  dayTime += dt * 0.025;
+  const brightness = 0.45 + (Math.sin(dayTime) + 1) * 0.5;
+  sun.intensity = brightness * 2;
+  scene.background.setHSL(0.56, 0.55, 0.18 + brightness * 0.3);
+  scene.fog.color.copy(scene.background);
+
+  renderer.render(scene, camera);
+}
+
+window.addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+$("status").textContent = "WORLD READY";
+requestAnimationFrame(animate);
